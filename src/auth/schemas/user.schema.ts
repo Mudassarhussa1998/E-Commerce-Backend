@@ -26,6 +26,12 @@ export class User {
     @Prop({ type: Date, default: null })
     resetPasswordExpires: Date | null;
 
+    @Prop({ type: String, default: null })
+    otp: string | null;
+
+    @Prop({ type: Date, default: null })
+    otpExpires: Date | null;
+
     @Prop({
         type: {
             businessName: { type: String },

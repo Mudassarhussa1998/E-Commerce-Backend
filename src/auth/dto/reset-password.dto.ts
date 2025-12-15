@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Mimport { IsString, MinLength, IsEmail, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, MinLength, IsEmail, MaxLength } from 'class-validator';
 
 export class ResetPasswordDto {
     @IsEmail()

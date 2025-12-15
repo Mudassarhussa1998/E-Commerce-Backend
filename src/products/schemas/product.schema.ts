@@ -40,6 +40,12 @@ export class Product {
 
     @Prop({ type: 'ObjectId', ref: 'User' })
     vendor: string;
+
+    @Prop({ default: 0, min: 0, max: 5 })
+    averageRating: number;
+
+    @Prop({ default: 0 })
+    totalReviews: number;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

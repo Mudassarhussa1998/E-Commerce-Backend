@@ -2,16 +2,29 @@
 
 A comprehensive NestJS backend API for an e-commerce platform with MongoDB, JWT authentication, and full CRUD operations.
 
-## Features
+## 🚀 Enhanced Features
 
+### Core E-commerce Features
 - 🔐 **JWT Authentication** - Secure user authentication with access/refresh tokens
-- 👤 **User Management** - Registration, login, password reset
+- 👤 **User Management** - Registration, login, password reset with email notifications
 - 🛍️ **Product Management** - Full CRUD operations with filtering and search
 - 🛒 **Shopping Cart** - Add, update, remove items with stock validation
 - ❤️ **Wishlist** - Save favorite products
 - 📦 **Order Management** - Create orders, track status, order history
 - 👨‍💼 **Admin Panel** - Role-based access control for admin operations
-- 🔍 **Advanced Filtering** - Search products by category, price, features
+- 🔍 **Advanced Search & Filtering** - Search products by category, price, rating, features
+
+### New Enhanced Features
+- ⭐ **Product Reviews & Ratings** - Customer reviews with rating system and helpful votes
+- 🎫 **Coupon System** - Percentage, fixed amount, and free shipping coupons with advanced rules
+- 📧 **Email Notifications** - Welcome emails, order confirmations, status updates, password reset
+- 💳 **Payment Integration** - Stripe and PayPal integration (mock implementation for demo)
+- 📊 **Analytics Dashboard** - Comprehensive sales analytics, customer insights, and performance metrics
+- 🏷️ **Inventory Management** - Stock tracking with low stock alerts
+- 📈 **Sales Reporting** - Revenue tracking, top products, category performance
+- 🔔 **Notification System** - Real-time notifications for orders and system events
+- 🌐 **Multi-language Ready** - Prepared for internationalization
+- 🎯 **Customer Segmentation** - Advanced customer analytics and targeting
 
 ## Tech Stack
 
@@ -149,6 +162,53 @@ A comprehensive NestJS backend API for an e-commerce platform with MongoDB, JWT 
 | GET | `/orders/:id` | Get order by ID | Yes |
 | GET | `/orders/all` | Get all orders | Admin |
 | PATCH | `/orders/:id/status` | Update order status | Admin |
+
+### Reviews
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/reviews` | Create product review | Yes |
+| GET | `/reviews/product/:productId` | Get product reviews | No |
+| GET | `/reviews/product/:productId/stats` | Get product rating stats | No |
+| POST | `/reviews/:reviewId/helpful` | Mark review as helpful | Yes |
+| DELETE | `/reviews/:reviewId` | Delete review | Yes/Admin |
+| GET | `/reviews/user/my-reviews` | Get user's reviews | Yes |
+
+### Coupons
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/coupons` | Create coupon | Admin |
+| POST | `/coupons/validate` | Validate coupon code | Yes |
+| GET | `/coupons` | Get all coupons | Admin |
+| GET | `/coupons/active` | Get active coupons | No |
+| GET | `/coupons/:id` | Get coupon by ID | Admin |
+| PUT | `/coupons/:id` | Update coupon | Admin |
+| DELETE | `/coupons/:id` | Delete coupon | Admin |
+
+### Payments
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/payments/create-intent` | Create payment intent | Yes |
+| POST | `/payments/confirm` | Confirm payment | Yes |
+| POST | `/payments/refund` | Refund payment | Yes |
+| POST | `/payments/create-customer` | Create Stripe customer | Yes |
+| POST | `/payments/paypal/create-order` | Create PayPal order | Yes |
+| POST | `/payments/paypal/capture-order` | Capture PayPal order | Yes |
+| POST | `/payments/webhook` | Handle payment webhooks | No |
+
+### Analytics
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| GET | `/analytics/dashboard` | Get dashboard stats | Admin |
+| GET | `/analytics/sales-chart` | Get sales chart data | Admin |
+| GET | `/analytics/top-products` | Get top selling products | Admin |
+| GET | `/analytics/categories` | Get category performance | Admin |
+| GET | `/analytics/customers` | Get customer analytics | Admin |
+| GET | `/analytics/order-status` | Get order status stats | Admin |
+| GET | `/analytics/recent-activity` | Get recent activity | Admin |
 
 ## Request/Response Examples
 

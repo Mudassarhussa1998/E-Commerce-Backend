@@ -9,6 +9,11 @@ import { NewsletterModule } from './newsletter/newsletter.module';
 import { CartModule } from './cart/cart.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { OrdersModule } from './orders/orders.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { CouponsModule } from './coupons/coupons.module';
+import { EmailModule } from './email/email.module';
+import { PaymentsModule } from './payments/payments.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -29,6 +34,11 @@ import { OrdersModule } from './orders/orders.module';
     CartModule,
     WishlistModule,
     OrdersModule,
+    ReviewsModule,
+    CouponsModule,
+    EmailModule,
+    PaymentsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
