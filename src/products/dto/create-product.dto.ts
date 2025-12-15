@@ -42,6 +42,10 @@ export class CreateProductDto {
     image?: string;
 
     @IsOptional()
+    @IsString({ each: true })
+    images?: string[];
+
+    @IsOptional()
     @IsBoolean()
     isNew?: boolean;
 

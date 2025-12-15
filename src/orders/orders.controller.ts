@@ -13,6 +13,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
@@ -35,6 +36,12 @@ export class OrdersController {
         return this.ordersService.findAll();
     }
 
+    @Get('analytics')
+    @UseGuards(AdminGuard)
+    getAnalytics() {
+        return this.ordersService.getAnalytics();
+    }
+
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.ordersService.findOne(id);
@@ -44,5 +51,11 @@ export class OrdersController {
     @UseGuards(AdminGuard)
     updateStatus(@Param('id') id: string, @Body() updateOrderStatusDto: UpdateOrderStatusDto) {
         return this.ordersService.updateStatus(id, updateOrderStatusDto);
+    }
+
+    @Post('track')
+    @Public()
+    trackOrder(@Body() body: { orderId: string; email: string }) {
+        return this.ordersService.trackOrder(body.orderId, body.email);
     }
 }

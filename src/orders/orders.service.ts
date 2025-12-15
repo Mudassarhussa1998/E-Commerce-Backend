@@ -10,7 +10,7 @@ import { ProductsService } from '../products/products.service';
 @Injectable()
 export class OrdersService {
     constructor(
-        @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
+        @InjectModel('Order') private orderModel: Model<OrderDocument>,
         private cartService: CartService,
         private productsService: ProductsService,
     ) { }
@@ -117,9 +117,70 @@ export class OrdersService {
         return order;
     }
 
+    async trackOrder(orderId: string, email: string): Promise<Order> {
+        // Find order by ID (or Order Number if preferred, but ID is easier for now)
+        // Let's assume input is Order Number or ID. Let's try both.
+        let order = await this.orderModel.findOne({ orderNumber: orderId }).populate('items.product').exec();
+
+        if (!order) {
+            // Try by ID if valid ObjectId
+            if (orderId.match(/^[0-9a-fA-F]{24}$/)) {
+                order = await this.orderModel.findById(orderId).populate('items.product').exec();
+            }
+        }
+
+        if (!order) {
+            throw new NotFoundException('Order not found');
+        }
+
+        // Verify email matches shipping address email or user email
+        // We need to populate user to check user email if needed, but shippingAddress email is safer for guest checkout scenarios (if we had them)
+        // For now, let's check shippingAddress.email
+        if (order.shippingAddress.email.toLowerCase() !== email.toLowerCase()) {
+            throw new NotFoundException('Order not found'); // Don't reveal mismatch
+        }
+
+        return order;
+    }
+
     private generateOrderNumber(): string {
         const timestamp = Date.now().toString();
         const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
         return `ORD-${timestamp}-${random}`;
+    }
+
+    async getAnalytics() {
+        const totalOrders = await this.orderModel.countDocuments().exec();
+
+        const revenueResult = await this.orderModel.aggregate([
+            { $group: { _id: null, total: { $sum: '$total' } } }
+        ]).exec();
+        const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
+
+        const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+        // Get monthly sales for chart
+        const monthlySales = await this.orderModel.aggregate([
+            {
+                $group: {
+                    _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                    sales: { $sum: "$total" },
+                    orders: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } },
+            { $limit: 6 } // Last 6 months
+        ]).exec();
+
+        return {
+            totalOrders,
+            totalRevenue,
+            averageOrderValue,
+            monthlySales: monthlySales.map(item => ({
+                name: item._id, // e.g., "2023-10"
+                sales: item.sales,
+                orders: item.orders
+            }))
+        };
     }
 }

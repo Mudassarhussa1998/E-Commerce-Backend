@@ -13,7 +13,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 @Injectable()
 export class AuthService {
     constructor(
-        @InjectModel(User.name) private userModel: Model<UserDocument>,
+        @InjectModel('User') private userModel: Model<UserDocument>,
         private jwtService: JwtService,
         private configService: ConfigService,
     ) { }
@@ -27,7 +27,7 @@ export class AuthService {
         }
 
         // Check if user already exists
-        const existingUser = await this.userModel.findOne({ email });
+        const existingUser = await this.userModel.findOne({ email }).exec();
         if (existingUser) {
             throw new ConflictException('User with this email already exists');
         }
@@ -68,7 +68,7 @@ export class AuthService {
         const { email, password } = loginDto;
 
         // Find user
-        const user = await this.userModel.findOne({ email });
+        const user = await this.userModel.findOne({ email }).exec();
         if (!user) {
             throw new UnauthorizedException('Invalid credentials');
         }
@@ -101,7 +101,7 @@ export class AuthService {
     }
 
     async logout(userId: string) {
-        await this.userModel.findByIdAndUpdate(userId, { refreshToken: null });
+        await this.userModel.findByIdAndUpdate(userId, { refreshToken: null }).exec();
         return { message: 'Logged out successfully' };
     }
 
@@ -111,7 +111,7 @@ export class AuthService {
             const payload = await this.jwtService.verifyAsync(refreshToken, { secret });
             const userId = payload.sub;
 
-            const user = await this.userModel.findById(userId);
+            const user = await this.userModel.findById(userId).exec();
             if (!user || !user.refreshToken) {
                 throw new UnauthorizedException('Access denied');
             }
@@ -131,7 +131,7 @@ export class AuthService {
     }
 
     async approveVendor(userId: string) {
-        const user = await this.userModel.findByIdAndUpdate(userId, { isApproved: true }, { new: true });
+        const user = await this.userModel.findByIdAndUpdate(userId, { isApproved: true }, { new: true }).exec();
         if (!user) {
             throw new NotFoundException('User not found');
         }
@@ -141,7 +141,7 @@ export class AuthService {
     async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
         const { email } = forgotPasswordDto;
 
-        const user = await this.userModel.findOne({ email });
+        const user = await this.userModel.findOne({ email }).exec();
         if (!user) {
             // Don't reveal if user exists
             return { message: 'If the email exists, a reset link has been sent' };
@@ -174,7 +174,7 @@ export class AuthService {
             email,
             otp,
             otpExpires: { $gt: new Date() },
-        });
+        }).exec();
 
         if (!user) {
             throw new BadRequestException('Invalid or expired OTP');
@@ -193,7 +193,7 @@ export class AuthService {
     }
 
     async getProfile(userId: string) {
-        const user = await this.userModel.findById(userId).select('-password -refreshToken -resetPasswordToken');
+        const user = await this.userModel.findById(userId).select('-password -refreshToken -resetPasswordToken').exec();
         if (!user) {
             throw new UnauthorizedException('User not found');
         }
@@ -203,14 +203,15 @@ export class AuthService {
             name: user.name,
             email: user.email,
             role: user.role,
+            addresses: user.addresses || [],
         };
     }
 
     async findAllUsers() {
-        return this.userModel.find().select('-password -refreshToken -resetPasswordToken');
+        return this.userModel.find().select('-password -refreshToken -resetPasswordToken').exec();
     }
 
-    private async generateTokens(userId: string, email: string, role: string) {
+    private async generateTokens(userId: string, email: string, role: string): Promise<{ accessToken: string; refreshToken: string }> {
         const payload = { sub: userId, email, role };
 
         const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET') || 'default-secret';
@@ -237,6 +238,79 @@ export class AuthService {
 
     private async updateRefreshToken(userId: string, refreshToken: string) {
         const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-        await this.userModel.findByIdAndUpdate(userId, { refreshToken: hashedRefreshToken });
+        await this.userModel.findByIdAndUpdate(userId, { refreshToken: hashedRefreshToken }).exec();
+    }
+    async addAddress(userId: string, addressData: any) {
+        const user = await this.userModel.findById(userId).exec();
+        if (!user) throw new NotFoundException('User not found');
+
+        if (addressData.isDefault) {
+            // Unset other defaults
+            user.addresses.forEach(addr => addr.isDefault = false);
+        } else if (user.addresses.length === 0) {
+            // First address is always default
+            addressData.isDefault = true;
+        }
+
+        user.addresses.push(addressData);
+        await user.save();
+        return user.addresses;
+    }
+
+    async removeAddress(userId: string, addressId: string) {
+        const user = await this.userModel.findById(userId).exec();
+        if (!user) throw new NotFoundException('User not found');
+
+        user.addresses = user.addresses.filter(addr => (addr as any)._id.toString() !== addressId);
+        await user.save();
+        return user.addresses;
+    }
+
+    async setDefaultAddress(userId: string, addressId: string) {
+        const user = await this.userModel.findById(userId).exec();
+        if (!user) throw new NotFoundException('User not found');
+
+        user.addresses.forEach(addr => {
+            addr.isDefault = (addr as any)._id.toString() === addressId;
+        });
+
+        await user.save();
+        return user.addresses;
+    }
+    async googleLogin(reqUser: any) {
+        if (!reqUser) {
+            throw new BadRequestException('No user from google');
+        }
+
+        const { email, firstName, lastName } = reqUser;
+        let user = await this.userModel.findOne({ email }).exec();
+
+        if (!user) {
+            // Create new user
+            const password = Math.random().toString(36).slice(-8); // Random password
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            user = new this.userModel({
+                name: `${firstName} ${lastName}`,
+                email,
+                password: hashedPassword,
+                role: 'user',
+                isApproved: true,
+            });
+            await user.save();
+        }
+
+        const tokens = await this.generateTokens(user._id.toString(), user.email, user.role);
+        await this.updateRefreshToken(user._id.toString(), tokens.refreshToken);
+
+        return {
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+            },
+            ...tokens,
+        };
     }
 }

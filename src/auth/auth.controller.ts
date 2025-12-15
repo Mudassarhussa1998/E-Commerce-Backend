@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Param } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Param, Delete, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +6,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -63,5 +64,34 @@ export class AuthController {
     @UseGuards(JwtAuthGuard, AdminGuard)
     async approveVendor(@Param('id') id: string) {
         return this.authService.approveVendor(id);
+    }
+
+    @Post('address')
+    @UseGuards(JwtAuthGuard)
+    async addAddress(@Request() req, @Body() addressData: any) {
+        return this.authService.addAddress(req.user.userId, addressData);
+    }
+
+    @Delete('address/:id')
+    @UseGuards(JwtAuthGuard)
+    async removeAddress(@Request() req, @Param('id') id: string) {
+        return this.authService.removeAddress(req.user.userId, id);
+    }
+
+    @Post('address/:id/default')
+    @UseGuards(JwtAuthGuard)
+    async setDefaultAddress(@Request() req, @Param('id') id: string) {
+        return this.authService.setDefaultAddress(req.user.userId, id);
+    }
+    @Get('google')
+    @UseGuards(GoogleAuthGuard)
+    async googleAuth(@Request() req) { }
+
+    @Get('google/callback')
+    @UseGuards(GoogleAuthGuard)
+    async googleAuthRedirect(@Request() req, @Res() res) {
+        const data = await this.authService.googleLogin(req.user);
+        // Redirect to frontend with tokens
+        res.redirect(`http://localhost:3001/auth/callback?accessToken=${data.accessToken}&refreshToken=${data.refreshToken}`);
     }
 }

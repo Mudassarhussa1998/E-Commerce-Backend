@@ -51,7 +51,24 @@ export class ProductsService {
             }
         }
 
-        return this.productModel.find(query).exec();
+        if (filterDto.inStock) {
+            query.stock = { $gt: 0 };
+        }
+
+        if (filterDto.minRating) {
+            query.averageRating = { $gte: filterDto.minRating };
+        }
+
+        const page = (filterDto as any).page && (filterDto as any).page > 0 ? (filterDto as any).page : 1;
+        const limit = (filterDto as any).limit && (filterDto as any).limit > 0 ? (filterDto as any).limit : 0;
+
+        const q = this.productModel.find(query);
+
+        if (limit > 0) {
+            q.limit(limit).skip((page - 1) * limit);
+        }
+
+        return q.exec();
     }
 
     async findOne(id: string): Promise<Product> {
@@ -106,5 +123,19 @@ export class ProductsService {
 
         product.stock -= quantity;
         return (product as any).save();
+    }
+    async getRecommendations(id: string): Promise<Product[]> {
+        const product = await this.findOne(id);
+        const { category, price } = product;
+
+        // Find products in the same category, with similar price (+/- 20%), excluding the current product
+        const minPrice = price * 0.8;
+        const maxPrice = price * 1.2;
+
+        return this.productModel.find({
+            _id: { $ne: id },
+            category,
+            price: { $gte: minPrice, $lte: maxPrice },
+        }).limit(4).exec();
     }
 }

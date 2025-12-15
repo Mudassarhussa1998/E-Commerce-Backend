@@ -82,6 +82,11 @@ export class ProductsController {
         return this.productsService.findByCategory(category);
     }
 
+    @Get(':id/recommendations')
+    getRecommendations(@Param('id') id: string) {
+        return this.productsService.getRecommendations(id);
+    }
+
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.productsService.findOne(id);

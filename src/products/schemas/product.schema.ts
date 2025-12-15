@@ -32,6 +32,9 @@ export class Product {
     @Prop({ default: '/images/shelf.png' })
     image: string;
 
+    @Prop({ type: [String], default: [] })
+    images: string[];
+
     @Prop({ default: false })
     isNew: boolean;
 

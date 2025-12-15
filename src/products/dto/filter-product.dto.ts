@@ -31,4 +31,25 @@ export class FilterProductDto {
     @Min(0)
     @Type(() => Number)
     maxPrice?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    page?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Type(() => Number)
+    limit?: number;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    inStock?: boolean;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    @Type(() => Number)
+    minRating?: number;
 }

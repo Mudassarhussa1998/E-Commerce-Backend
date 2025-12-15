@@ -52,6 +52,27 @@ export class User {
 
     @Prop({ default: true })
     isApproved: boolean;
+
+    @Prop([{
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+        streetAddress: { type: String, required: true },
+        city: { type: String, required: true },
+        province: { type: String, required: true },
+        zipCode: { type: String, required: true },
+        phone: { type: String, required: true },
+        isDefault: { type: Boolean, default: false }
+    }])
+    addresses: {
+        firstName: string;
+        lastName: string;
+        streetAddress: string;
+        city: string;
+        province: string;
+        zipCode: string;
+        phone: string;
+        isDefault: boolean;
+    }[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
