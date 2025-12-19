@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
 
 export interface PaymentIntent {
   id: string;
@@ -19,32 +20,51 @@ export interface CreatePaymentIntentDto {
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
+  private stripe: Stripe | null = null;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) {
+    const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (stripeKey && stripeKey.startsWith('sk_')) {
+      this.stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' });
+    }
+  }
 
   async createPaymentIntent(data: CreatePaymentIntentDto): Promise<PaymentIntent> {
     try {
-      // In a real implementation, you would use Stripe SDK:
-      // const stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY'));
-      // const paymentIntent = await stripe.paymentIntents.create({
-      //   amount: data.amount * 100, // Stripe uses cents
-      //   currency: data.currency || 'usd',
-      //   metadata: {
-      //     orderId: data.orderId,
-      //   },
-      //   customer: data.customerId,
-      // });
+      // Use real Stripe if configured
+      if (this.stripe) {
+        const paymentIntent = await this.stripe.paymentIntents.create({
+          amount: Math.round(data.amount * 100), // Stripe uses cents
+          currency: data.currency || 'usd',
+          metadata: {
+            orderId: data.orderId,
+          },
+          automatic_payment_methods: {
+            enabled: true,
+          },
+        });
 
-      // For demo purposes, we'll simulate a payment intent
+        this.logger.log(`Created Stripe payment intent: ${paymentIntent.id} for order: ${data.orderId}`);
+
+        return {
+          id: paymentIntent.id,
+          clientSecret: paymentIntent.client_secret || '',
+          amount: data.amount,
+          currency: data.currency || 'usd',
+          status: paymentIntent.status,
+        };
+      }
+
+      // Dummy/Mock payment for development
       const mockPaymentIntent: PaymentIntent = {
-        id: `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        clientSecret: `pi_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`,
+        id: `pi_demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        clientSecret: `pi_demo_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`,
         amount: data.amount,
         currency: data.currency || 'usd',
         status: 'requires_payment_method',
       };
 
-      this.logger.log(`Created payment intent: ${mockPaymentIntent.id} for order: ${data.orderId}`);
+      this.logger.log(`[DEMO] Created mock payment intent: ${mockPaymentIntent.id} for order: ${data.orderId}`);
       
       return mockPaymentIntent;
     } catch (error) {
@@ -55,15 +75,21 @@ export class PaymentsService {
 
   async confirmPayment(paymentIntentId: string): Promise<{ status: string; paymentMethod?: any }> {
     try {
-      // In a real implementation:
-      // const stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY'));
-      // const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-      
-      // For demo purposes, simulate successful payment
+      if (this.stripe && !paymentIntentId.startsWith('pi_demo_')) {
+        const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+        this.logger.log(`Payment status retrieved: ${paymentIntentId} - ${paymentIntent.status}`);
+        
+        return {
+          status: paymentIntent.status,
+          paymentMethod: paymentIntent.payment_method,
+        };
+      }
+
+      // Demo mode - simulate successful payment
       const mockResult = {
         status: 'succeeded',
         paymentMethod: {
-          id: `pm_${Math.random().toString(36).substr(2, 9)}`,
+          id: `pm_demo_${Math.random().toString(36).substr(2, 9)}`,
           type: 'card',
           card: {
             brand: 'visa',
@@ -72,7 +98,7 @@ export class PaymentsService {
         },
       };
 
-      this.logger.log(`Payment confirmed: ${paymentIntentId}`);
+      this.logger.log(`[DEMO] Payment confirmed: ${paymentIntentId}`);
       
       return mockResult;
     } catch (error) {
@@ -83,20 +109,27 @@ export class PaymentsService {
 
   async refundPayment(paymentIntentId: string, amount?: number): Promise<{ id: string; status: string }> {
     try {
-      // In a real implementation:
-      // const stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY'));
-      // const refund = await stripe.refunds.create({
-      //   payment_intent: paymentIntentId,
-      //   amount: amount ? amount * 100 : undefined, // Stripe uses cents
-      // });
+      if (this.stripe && !paymentIntentId.startsWith('pi_demo_')) {
+        const refund = await this.stripe.refunds.create({
+          payment_intent: paymentIntentId,
+          amount: amount ? Math.round(amount * 100) : undefined,
+        });
 
-      // For demo purposes, simulate successful refund
+        this.logger.log(`Refund created: ${refund.id} for payment: ${paymentIntentId}`);
+        
+        return {
+          id: refund.id,
+          status: refund.status || 'succeeded',
+        };
+      }
+
+      // Demo mode
       const mockRefund = {
-        id: `re_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `re_demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         status: 'succeeded',
       };
 
-      this.logger.log(`Refund created: ${mockRefund.id} for payment: ${paymentIntentId}`);
+      this.logger.log(`[DEMO] Refund created: ${mockRefund.id} for payment: ${paymentIntentId}`);
       
       return mockRefund;
     } catch (error) {
@@ -107,19 +140,23 @@ export class PaymentsService {
 
   async createCustomer(email: string, name: string): Promise<{ id: string }> {
     try {
-      // In a real implementation:
-      // const stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY'));
-      // const customer = await stripe.customers.create({
-      //   email,
-      //   name,
-      // });
+      if (this.stripe) {
+        const customer = await this.stripe.customers.create({
+          email,
+          name,
+        });
 
-      // For demo purposes, simulate customer creation
+        this.logger.log(`Created Stripe customer: ${customer.id} for ${email}`);
+        
+        return { id: customer.id };
+      }
+
+      // Demo mode
       const mockCustomer = {
-        id: `cus_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `cus_demo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       };
 
-      this.logger.log(`Created customer: ${mockCustomer.id} for ${email}`);
+      this.logger.log(`[DEMO] Created customer: ${mockCustomer.id} for ${email}`);
       
       return mockCustomer;
     } catch (error) {
@@ -130,25 +167,27 @@ export class PaymentsService {
 
   async handleWebhook(signature: string, payload: any): Promise<void> {
     try {
-      // In a real implementation:
-      // const stripe = new Stripe(this.configService.get('STRIPE_SECRET_KEY'));
-      // const event = stripe.webhooks.constructEvent(
-      //   payload,
-      //   signature,
-      //   this.configService.get('STRIPE_WEBHOOK_SECRET')
-      // );
+      if (this.stripe) {
+        const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
+        if (webhookSecret) {
+          const event = this.stripe.webhooks.constructEvent(
+            payload,
+            signature,
+            webhookSecret
+          );
 
-      // Handle different event types
-      // switch (event.type) {
-      //   case 'payment_intent.succeeded':
-      //     // Handle successful payment
-      //     break;
-      //   case 'payment_intent.payment_failed':
-      //     // Handle failed payment
-      //     break;
-      //   default:
-      //     console.log(`Unhandled event type ${event.type}`);
-      // }
+          switch (event.type) {
+            case 'payment_intent.succeeded':
+              this.logger.log(`Payment succeeded: ${(event.data.object as any).id}`);
+              break;
+            case 'payment_intent.payment_failed':
+              this.logger.log(`Payment failed: ${(event.data.object as any).id}`);
+              break;
+            default:
+              this.logger.log(`Unhandled event type: ${event.type}`);
+          }
+        }
+      }
 
       this.logger.log('Webhook processed successfully');
     } catch (error) {

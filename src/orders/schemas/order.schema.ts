@@ -72,7 +72,7 @@ export class Order {
     @Prop()
     additionalInfo: string;
 
-    @Prop({ required: true, enum: ['bank', 'cod'] })
+    @Prop({ required: true, enum: ['bank', 'cod', 'stripe', 'paypal'] })
     paymentMethod: string;
 
     @Prop({ required: true })
@@ -80,6 +80,12 @@ export class Order {
 
     @Prop({ default: 0 })
     shipping: number;
+
+    @Prop({ default: 0 })
+    discountAmount: number;
+
+    @Prop()
+    couponCode: string;
 
     @Prop({ required: true })
     total: number;
@@ -89,6 +95,12 @@ export class Order {
         enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
     })
     status: string;
+
+    @Prop()
+    paymentIntentId: string;
+
+    @Prop()
+    trackingNumber: string;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

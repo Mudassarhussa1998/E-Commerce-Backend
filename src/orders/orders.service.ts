@@ -45,7 +45,8 @@ export class OrdersService {
         // Calculate totals
         const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
         const shipping = 0; // Free shipping
-        const total = subtotal + shipping;
+        const discountAmount = createOrderDto.discountAmount || 0;
+        const total = subtotal + shipping - discountAmount;
 
         // Generate unique order number
         const orderNumber = this.generateOrderNumber();
@@ -60,6 +61,8 @@ export class OrdersService {
             paymentMethod: createOrderDto.paymentMethod,
             subtotal,
             shipping,
+            discountAmount,
+            couponCode: createOrderDto.couponCode || null,
             total,
             status: 'pending',
         });

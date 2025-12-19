@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Delete, Param } from '@nestjs/common';
 import { NewsletterService } from './newsletter.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -10,6 +10,11 @@ export class NewsletterController {
     @Post('subscribe')
     async subscribe(@Body('email') email: string) {
         return this.newsletterService.subscribe(email);
+    }
+
+    @Delete('unsubscribe/:email')
+    async unsubscribe(@Param('email') email: string) {
+        return this.newsletterService.unsubscribe(email);
     }
 
     @UseGuards(JwtAuthGuard, AdminGuard)

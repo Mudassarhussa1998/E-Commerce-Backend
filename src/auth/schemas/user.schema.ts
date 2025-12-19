@@ -32,6 +32,15 @@ export class User {
     @Prop({ type: Date, default: null })
     otpExpires: Date | null;
 
+    @Prop({ default: false })
+    isEmailVerified: boolean;
+
+    @Prop({ type: String, default: null })
+    emailVerificationOtp: string | null;
+
+    @Prop({ type: Date, default: null })
+    emailVerificationOtpExpires: Date | null;
+
     @Prop({
         type: {
             businessName: { type: String },
@@ -40,7 +49,8 @@ export class User {
             taxId: { type: String },
             description: { type: String },
         },
-        default: null
+        default: null,
+        required: false
     })
     vendorDetails: {
         businessName: string;

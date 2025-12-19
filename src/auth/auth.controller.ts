@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Param, Delete, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -10,7 +11,10 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) { }
+    constructor(
+        private readonly authService: AuthService,
+        private readonly configService: ConfigService,
+    ) { }
 
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {
@@ -46,6 +50,18 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
         return this.authService.resetPassword(resetPasswordDto);
+    }
+
+    @Post('send-verification-otp')
+    @HttpCode(HttpStatus.OK)
+    async sendVerificationOtp(@Body() body: { email: string }) {
+        return this.authService.sendVerificationOtp(body.email);
+    }
+
+    @Post('verify-email')
+    @HttpCode(HttpStatus.OK)
+    async verifyEmail(@Body() body: { email: string; otp: string }) {
+        return this.authService.verifyEmail(body.email, body.otp);
     }
 
     @Get('me')
@@ -85,13 +101,16 @@ export class AuthController {
     }
     @Get('google')
     @UseGuards(GoogleAuthGuard)
-    async googleAuth(@Request() req) { }
+    async googleAuth() {
+        // Guard redirects to Google
+    }
 
     @Get('google/callback')
     @UseGuards(GoogleAuthGuard)
     async googleAuthRedirect(@Request() req, @Res() res) {
         const data = await this.authService.googleLogin(req.user);
+        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
         // Redirect to frontend with tokens
-        res.redirect(`http://localhost:3001/auth/callback?accessToken=${data.accessToken}&refreshToken=${data.refreshToken}`);
+        res.redirect(`${frontendUrl}/auth/callback?accessToken=${data.accessToken}&refreshToken=${data.refreshToken}`);
     }
 }
