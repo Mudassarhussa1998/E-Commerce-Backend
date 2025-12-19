@@ -9,6 +9,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AuthService {
@@ -16,7 +17,12 @@ export class AuthService {
         @InjectModel('User') private userModel: Model<UserDocument>,
         private jwtService: JwtService,
         private configService: ConfigService,
+        private emailService: EmailService,
     ) { }
+
+    private generateOtp(): string {
+        return Math.floor(100000 + Math.random() * 900000).toString();
+    }
 
     async register(registerDto: RegisterDto) {
         const { name, email, password, confirmPassword, role, vendorDetails } = registerDto;
@@ -35,17 +41,27 @@ export class AuthService {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
+        // Generate OTP for email verification
+        const otp = this.generateOtp();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Create user (vendor details are optional)
         const user = new this.userModel({
             name,
             email,
             password: hashedPassword,
             role: role || 'user',
-            vendorDetails: role === 'vendor' ? vendorDetails : null,
+            vendorDetails: role === 'vendor' && vendorDetails ? vendorDetails : null,
             isApproved: role === 'vendor' ? false : true,
+            isEmailVerified: false,
+            emailVerificationOtp: otp,
+            emailVerificationOtpExpires: otpExpires,
         });
 
         await user.save();
+
+        // Send OTP email
+        await this.emailService.sendOtpEmail(email, otp);
 
         // Generate tokens
         const tokens = await this.generateTokens(user._id.toString(), user.email, user.role);
@@ -59,9 +75,52 @@ export class AuthService {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                isEmailVerified: user.isEmailVerified,
             },
+            message: 'Registration successful. Please verify your email with the OTP sent.',
             ...tokens,
         };
+    }
+
+    async sendVerificationOtp(email: string) {
+        const user = await this.userModel.findOne({ email }).exec();
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        if (user.isEmailVerified) {
+            throw new BadRequestException('Email is already verified');
+        }
+
+        const otp = this.generateOtp();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        user.emailVerificationOtp = otp;
+        user.emailVerificationOtpExpires = otpExpires;
+        await user.save();
+
+        await this.emailService.sendOtpEmail(email, otp);
+
+        return { message: 'OTP sent to your email' };
+    }
+
+    async verifyEmail(email: string, otp: string) {
+        const user = await this.userModel.findOne({
+            email,
+            emailVerificationOtp: otp,
+            emailVerificationOtpExpires: { $gt: new Date() },
+        }).exec();
+
+        if (!user) {
+            throw new BadRequestException('Invalid or expired OTP');
+        }
+
+        user.isEmailVerified = true;
+        user.emailVerificationOtp = null;
+        user.emailVerificationOtpExpires = null;
+        await user.save();
+
+        return { message: 'Email verified successfully' };
     }
 
     async login(loginDto: LoginDto) {
@@ -193,7 +252,7 @@ export class AuthService {
     }
 
     async getProfile(userId: string) {
-        const user = await this.userModel.findById(userId).select('-password -refreshToken -resetPasswordToken').exec();
+        const user = await this.userModel.findById(userId).select('-password -refreshToken -resetPasswordToken -emailVerificationOtp -otp').exec();
         if (!user) {
             throw new UnauthorizedException('User not found');
         }
@@ -203,7 +262,9 @@ export class AuthService {
             name: user.name,
             email: user.email,
             role: user.role,
+            isEmailVerified: user.isEmailVerified,
             addresses: user.addresses || [],
+            vendorDetails: user.vendorDetails || null,
         };
     }
 

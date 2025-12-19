@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 
 interface EmailOptions {
   to: string;
@@ -11,25 +12,72 @@ interface EmailOptions {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
+  private transporter: nodemailer.Transporter;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) {
+    // Initialize nodemailer transporter
+    const emailUser = this.configService.get<string>('EMAIL_USER');
+    const emailPass = this.configService.get<string>('EMAIL_PASS');
+
+    if (emailUser && emailPass) {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: emailUser,
+          pass: emailPass,
+        },
+      });
+    }
+  }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
-      // For development, we'll just log the email
-      // In production, integrate with services like SendGrid, AWS SES, or Nodemailer
-      this.logger.log(`📧 Email would be sent to: ${options.to}`);
-      this.logger.log(`📧 Subject: ${options.subject}`);
-      this.logger.log(`📧 Content: ${options.html}`);
-      
-      // Simulate email sending delay
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const emailUser = this.configService.get<string>('EMAIL_USER');
+      const emailPass = this.configService.get<string>('EMAIL_PASS');
+
+      // If email credentials are configured, send real email
+      if (emailUser && emailPass && this.transporter) {
+        await this.transporter.sendMail({
+          from: `"Funiro" <${emailUser}>`,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        });
+        this.logger.log(`📧 Email sent to: ${options.to}`);
+        return true;
+      }
+
+      // For development without email config, just log
+      this.logger.log(`📧 [DEV] Email would be sent to: ${options.to}`);
+      this.logger.log(`📧 [DEV] Subject: ${options.subject}`);
       
       return true;
     } catch (error) {
       this.logger.error(`Failed to send email to ${options.to}:`, error);
       return false;
     }
+  }
+
+  async sendOtpEmail(email: string, otp: string): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #333;">Email Verification</h1>
+        <p>Your verification code is:</p>
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center;">
+          <h2 style="color: #B88E2F; font-size: 32px; letter-spacing: 8px; margin: 0;">${otp}</h2>
+        </div>
+        <p>This code will expire in 10 minutes.</p>
+        <p>If you didn't request this code, please ignore this email.</p>
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Your Funiro Verification Code',
+      html,
+    });
   }
 
   async sendWelcomeEmail(userEmail: string, userName: string): Promise<boolean> {

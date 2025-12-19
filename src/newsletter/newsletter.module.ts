@@ -3,10 +3,12 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NewsletterController } from './newsletter.controller';
 import { NewsletterService } from './newsletter.service';
 import { Subscriber, SubscriberSchema } from './schemas/subscriber.schema';
+import { EmailModule } from '../email/email.module';
 
 @Module({
     imports: [
         MongooseModule.forFeature([{ name: Subscriber.name, schema: SubscriberSchema }]),
+        EmailModule,
     ],
     controllers: [NewsletterController],
     providers: [NewsletterService],

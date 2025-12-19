@@ -7,8 +7,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { User, UserSchema } from './schemas/user.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
-
 import { GoogleStrategy } from './strategies/google.strategy';
+import { EmailModule } from '../email/email.module';
 
 @Module({
     imports: [
@@ -16,6 +16,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
         PassportModule,
         JwtModule.register({}),
         ConfigModule,
+        EmailModule,
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy, GoogleStrategy],

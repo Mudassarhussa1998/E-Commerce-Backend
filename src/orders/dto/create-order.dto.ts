@@ -62,6 +62,13 @@ export class CreateOrderDto {
     additionalInfo?: string;
 
     @IsNotEmpty()
-    @IsEnum(['bank', 'cod'])
+    @IsEnum(['bank', 'cod', 'stripe', 'paypal'])
     paymentMethod: string;
+
+    @IsOptional()
+    @IsString()
+    couponCode?: string;
+
+    @IsOptional()
+    discountAmount?: number;
 }
