@@ -13,6 +13,8 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('orders')
@@ -28,6 +30,13 @@ export class OrdersController {
     @Get()
     findByUser(@Request() req) {
         return this.ordersService.findByUser(req.user.userId);
+    }
+
+    @Get('vendor/me')
+    @UseGuards(RolesGuard)
+    @Roles('vendor')
+    findByVendor(@Request() req) {
+        return this.ordersService.findByVendor(req.user.userId);
     }
 
     @Get('all')

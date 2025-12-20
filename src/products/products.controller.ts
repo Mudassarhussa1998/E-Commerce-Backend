@@ -10,14 +10,17 @@ import {
     UseGuards,
     UseInterceptors,
     UploadedFile,
+    UploadedFiles,
     Request
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { FilterProductDto } from './dto/filter-product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -27,7 +30,8 @@ export class ProductsController {
     constructor(private readonly productsService: ProductsService) { }
 
     @Post()
-    @UseGuards(JwtAuthGuard, AdminGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'vendor')
     create(@Body() createProductDto: CreateProductDto, @Request() req) {
         // Assign the logged-in user (admin or vendor) as the vendor of the product
         const productData = {
@@ -38,7 +42,8 @@ export class ProductsController {
     }
 
     @Post('upload')
-    @UseGuards(JwtAuthGuard, AdminGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'vendor')
     @UseInterceptors(FileInterceptor('file', {
         storage: diskStorage({
             destination: './uploads',
@@ -81,7 +86,8 @@ export class ProductsController {
     }
 
     @Get('vendor/me')
-    @UseGuards(JwtAuthGuard, AdminGuard)
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('vendor')
     async getVendorProducts(@Request() req) {
         // We need to add a method in service to find by vendor
         return this.productsService.findByVendor(req.user.userId);
@@ -113,14 +119,38 @@ export class ProductsController {
     }
 
     @Patch(':id')
-    @UseGuards(JwtAuthGuard, AdminGuard)
-    update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-        return this.productsService.update(id, updateProductDto);
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'vendor')
+    @UseInterceptors(FilesInterceptor('images', 5, {
+        storage: diskStorage({
+            destination: './uploads',
+            filename: (req, file, callback) => {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                const ext = extname(file.originalname);
+                callback(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+            },
+        }),
+    }))
+    update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto, @Request() req, @UploadedFiles() files?: Express.Multer.File[]) {
+        return this.productsService.update(id, updateProductDto, req.user.userId, req.user.role, files);
     }
 
     @Delete(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('admin', 'vendor')
+    remove(@Param('id') id: string, @Request() req) {
+        return this.productsService.remove(id, req.user.userId, req.user.role);
+    }
+
+    @Patch(':id/approve')
     @UseGuards(JwtAuthGuard, AdminGuard)
-    remove(@Param('id') id: string) {
-        return this.productsService.remove(id);
+    async approveProduct(@Param('id') id: string, @Request() req) {
+        return this.productsService.approveProduct(id, req.user.userId);
+    }
+
+    @Patch(':id/reject')
+    @UseGuards(JwtAuthGuard, AdminGuard)
+    async rejectProduct(@Param('id') id: string, @Request() req) {
+        return this.productsService.rejectProduct(id, req.user.userId);
     }
 }

@@ -24,8 +24,25 @@ export class NewsletterController {
     }
 
     @UseGuards(JwtAuthGuard, AdminGuard)
+    @Get('admin-data')
+    async getAdminNewsletterData() {
+        return this.newsletterService.getAdminNewsletterData();
+    }
+
+    @UseGuards(JwtAuthGuard, AdminGuard)
     @Post('send')
     async send(@Body() body: { subject: string; message: string }) {
         return this.newsletterService.sendToAll(body.subject, body.message);
+    }
+
+    @UseGuards(JwtAuthGuard, AdminGuard)
+    @Post('send-targeted')
+    async sendTargeted(@Body() body: { 
+        subject: string; 
+        message: string; 
+        targets: string[]; // ['all-users', 'vendors', 'customers', 'subscribers']
+        categories?: string[]; // vendor categories
+    }) {
+        return this.newsletterService.sendTargeted(body.subject, body.message, body.targets, body.categories);
     }
 }

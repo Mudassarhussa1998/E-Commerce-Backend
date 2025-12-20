@@ -21,7 +21,7 @@ export class AiService {
         // 1. Fetch simplified product catalog
         const productsResult = await this.productsService.findAll({});
         const productContext = productsResult.products.map(p =>
-            `- ${p.title} (${p.category}): Rp ${p.price.toLocaleString()} - ${p.stock > 0 ? 'In Stock' : 'Out of Stock'}`
+            `- ${p.title} (${p.topCategory}): $${p.price.toLocaleString()} - ${p.stock > 0 ? 'In Stock' : 'Out of Stock'}`
         ).join('\n');
 
         // 2. Construct System Prompt
@@ -113,7 +113,7 @@ export class AiService {
             // 3. Find Matching Product using Text Model
             const productsResult = await this.productsService.findAll({});
             const productContext = productsResult.products.map(p =>
-                `- ID: ${(p as any)._id}, Name: ${p.title}, Category: ${p.category}, Price: ${p.price}, Description: ${p.description}`
+                `- ID: ${(p as any)._id}, Name: ${p.title}, Category: ${p.topCategory}, Price: ${p.price}, Description: ${p.description}`
             ).join('\n');
 
             const matchPrompt = `

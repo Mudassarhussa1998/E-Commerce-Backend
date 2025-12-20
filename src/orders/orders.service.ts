@@ -90,6 +90,21 @@ export class OrdersService {
         return this.orderModel.find({ user: userId }).populate('items.product').exec();
     }
 
+    async findByVendor(vendorId: string): Promise<Order[]> {
+        // First, get all products by this vendor
+        const vendorProducts = await this.productsService.findByVendor(vendorId);
+        const productIds = vendorProducts.map(product => (product as any)._id);
+
+        // Find orders that contain any of these products
+        return this.orderModel
+            .find({
+                'items.product': { $in: productIds }
+            })
+            .populate('user', 'name email')
+            .populate('items.product')
+            .exec();
+    }
+
     async findOne(id: string): Promise<Order> {
         const order = await this.orderModel
             .findById(id)

@@ -1,4 +1,7 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Param, Delete, Res } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Param, Delete, Res, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -15,6 +18,32 @@ export class AuthController {
         private readonly authService: AuthService,
         private readonly configService: ConfigService,
     ) { }
+
+    @Post('vendor-register')
+    @UseInterceptors(FilesInterceptor('files', 10, {
+        storage: diskStorage({
+            destination: './uploads/vendor-documents',
+            filename: (req, file, cb) => {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                cb(null, file.fieldname + '-' + uniqueSuffix + extname(file.originalname));
+            },
+        }),
+        fileFilter: (req, file, cb) => {
+            // Support more image formats: jpg, jpeg, png, gif, webp, bmp, tiff, svg, and pdf
+            if (file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|bmp|tiff|svg\+xml|pdf)$/)) {
+                cb(null, true);
+            } else {
+                cb(new Error('Only image files (JPEG, PNG, GIF, WebP, BMP, TIFF, SVG) and PDF files are allowed!'), false);
+            }
+        },
+        limits: {
+            fileSize: 5 * 1024 * 1024, // 5MB limit
+        },
+    }))
+    async vendorRegister(@Body() registerDto: any, @UploadedFiles() files: Express.Multer.File[]) {
+        // Handle the detailed vendor registration with file uploads
+        return this.authService.vendorRegister(registerDto, files);
+    }
 
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {
@@ -80,6 +109,18 @@ export class AuthController {
     @UseGuards(JwtAuthGuard, AdminGuard)
     async approveVendor(@Param('id') id: string) {
         return this.authService.approveVendor(id);
+    }
+
+    @Post('users/:id/block')
+    @UseGuards(JwtAuthGuard, AdminGuard)
+    async blockUser(@Param('id') id: string, @Body('reason') reason: string, @Request() req) {
+        return this.authService.blockUser(id, req.user.userId, reason);
+    }
+
+    @Post('users/:id/unblock')
+    @UseGuards(JwtAuthGuard, AdminGuard)
+    async unblockUser(@Param('id') id: string, @Request() req) {
+        return this.authService.unblockUser(id, req.user.userId);
     }
 
     @Post('address')

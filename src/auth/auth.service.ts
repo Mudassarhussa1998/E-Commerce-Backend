@@ -10,11 +10,13 @@ import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { EmailService } from '../email/email.service';
+import { Vendor, VendorDocument, VendorStatus } from '../vendors/schemas/vendor.schema';
 
 @Injectable()
 export class AuthService {
     constructor(
         @InjectModel('User') private userModel: Model<UserDocument>,
+        @InjectModel(Vendor.name) private vendorModel: Model<VendorDocument>,
         private jwtService: JwtService,
         private configService: ConfigService,
         private emailService: EmailService,
@@ -22,6 +24,186 @@ export class AuthService {
 
     private generateOtp(): string {
         return Math.floor(100000 + Math.random() * 900000).toString();
+    }
+
+    private async createVendorApplicationFromSignup(userId: string, name: string, email: string, vendorDetails?: any) {
+        try {
+            // Check if vendor application already exists
+            const existingVendor = await this.vendorModel.findOne({ user: userId });
+            if (existingVendor) {
+                return existingVendor;
+            }
+
+            // Create vendor application with data from signup form
+            const vendor = new this.vendorModel({
+                user: userId,
+                shopName: vendorDetails?.businessName || `${name}'s Shop`,
+                businessName: vendorDetails?.businessName || `${name} Business`,
+                businessType: 'Individual',
+                contactPerson: name,
+                phoneNumber: vendorDetails?.phone || '+1234567890',
+                alternatePhone: '+0987654321',
+                email: email,
+                businessAddress: {
+                    street: vendorDetails?.address || 'Please update your business address',
+                    city: 'City',
+                    state: 'State',
+                    zipCode: '00000',
+                    country: 'Country',
+                },
+                pickupAddress: {
+                    street: vendorDetails?.address || 'Please update your pickup address',
+                    city: 'City',
+                    state: 'State',
+                    zipCode: '00000',
+                    country: 'Country',
+                },
+                bankDetails: {
+                    accountHolderName: name,
+                    accountNumber: 'Please update',
+                    bankName: 'Please update',
+                    ifscCode: 'Please update',
+                    branchName: 'Please update',
+                },
+                taxDetails: {
+                    gstNumber: vendorDetails?.taxId || 'Please update',
+                    panNumber: 'Please update',
+                },
+                documents: {
+                    businessLicense: 'pending',
+                    taxCertificate: 'pending',
+                    identityProof: 'pending',
+                    addressProof: 'pending',
+                },
+                status: VendorStatus.PENDING,
+            });
+
+            const savedVendor = await vendor.save();
+
+            // Send notification email to admin
+            await this.emailService.sendVendorApplicationNotification(
+                email,
+                name,
+                vendorDetails?.businessName || `${name}'s Shop`,
+            );
+
+            return savedVendor;
+        } catch (error) {
+            console.error('Error creating vendor application from signup:', error);
+            // Don't throw error to prevent signup failure
+            return null;
+        }
+    }
+
+    async vendorRegister(registerDto: any, files: Express.Multer.File[]) {
+        const { name, email, password, confirmPassword, vendorDetails } = registerDto;
+        
+        // Parse vendorDetails if it's a string
+        const parsedVendorDetails = typeof vendorDetails === 'string' 
+            ? JSON.parse(vendorDetails) 
+            : vendorDetails;
+
+        // Check if passwords match
+        if (password !== confirmPassword) {
+            throw new BadRequestException('Passwords do not match');
+        }
+
+        // Check if user already exists
+        const existingUser = await this.userModel.findOne({ email }).exec();
+        if (existingUser) {
+            throw new ConflictException('User with this email already exists');
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Generate OTP for email verification
+        const otp = this.generateOtp();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // Create user
+        const user = new this.userModel({
+            name,
+            email,
+            password: hashedPassword,
+            role: 'vendor',
+            isApproved: false,
+            isEmailVerified: false,
+            emailVerificationOtp: otp,
+            emailVerificationOtpExpires: otpExpires,
+        });
+
+        await user.save();
+
+        // Process uploaded files
+        const documentPaths: Record<string, string> = {};
+        if (files && files.length > 0) {
+            files.forEach(file => {
+                documentPaths[file.fieldname] = file.filename;
+            });
+        }
+
+        // Create detailed vendor application
+        const vendor = new this.vendorModel({
+            user: user._id,
+            shopName: parsedVendorDetails.shopName,
+            businessName: parsedVendorDetails.businessName,
+            businessType: parsedVendorDetails.businessType || 'Individual',
+            businessCategory: parsedVendorDetails.businessCategory,
+            businessDescription: parsedVendorDetails.businessDescription,
+            establishedYear: parsedVendorDetails.establishedYear,
+            contactPerson: name,
+            phoneNumber: parsedVendorDetails.phoneNumber,
+            alternatePhone: parsedVendorDetails.alternatePhone,
+            email: email,
+            cnicNumber: parsedVendorDetails.cnicNumber,
+            dateOfBirth: parsedVendorDetails.dateOfBirth,
+            businessAddress: parsedVendorDetails.businessAddress,
+            pickupAddress: parsedVendorDetails.pickupAddress,
+            bankDetails: parsedVendorDetails.bankDetails,
+            taxDetails: parsedVendorDetails.taxDetails,
+            documents: {
+                businessLicense: documentPaths.businessLicense || 'pending',
+                taxCertificate: documentPaths.taxCertificate || 'pending',
+                identityProof: documentPaths.cnicFrontPhoto || 'pending',
+                addressProof: documentPaths.cnicBackPhoto || 'pending',
+                personalPhoto: documentPaths.personalPhoto || 'pending',
+                cnicFrontPhoto: documentPaths.cnicFrontPhoto || 'pending',
+                cnicBackPhoto: documentPaths.cnicBackPhoto || 'pending',
+            },
+            status: VendorStatus.PENDING,
+        });
+
+        await vendor.save();
+
+        // Send OTP email
+        await this.emailService.sendOtpEmail(email, otp);
+
+        // Send notification email to admin
+        await this.emailService.sendVendorApplicationNotification(
+            email,
+            name,
+            parsedVendorDetails.shopName,
+        );
+
+        // Generate tokens
+        const tokens = await this.generateTokens(user._id.toString(), user.email, user.role);
+
+        // Save refresh token
+        await this.updateRefreshToken(user._id.toString(), tokens.refreshToken);
+
+        return {
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isApproved: user.isApproved,
+                isEmailVerified: user.isEmailVerified,
+            },
+            message: 'Vendor registration successful. Please verify your email with the OTP sent.',
+            ...tokens,
+        };
     }
 
     async register(registerDto: RegisterDto) {
@@ -59,6 +241,11 @@ export class AuthService {
         });
 
         await user.save();
+
+        // If user registered as vendor, create vendor application automatically
+        if (role === 'vendor') {
+            await this.createVendorApplicationFromSignup(user._id.toString(), name, email, vendorDetails);
+        }
 
         // Send OTP email
         await this.emailService.sendOtpEmail(email, otp);
@@ -138,9 +325,10 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        if (user.role === 'vendor' && !user.isApproved) {
-            throw new UnauthorizedException('Your vendor account is pending approval');
-        }
+        // Allow vendors to login even if not approved, but include approval status
+        // if (user.role === 'vendor' && !user.isApproved) {
+        //     throw new UnauthorizedException('Your vendor account is pending approval');
+        // }
 
         // Generate tokens
         const tokens = await this.generateTokens(user._id.toString(), user.email, user.role);
@@ -154,6 +342,8 @@ export class AuthService {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                isApproved: user.isApproved,
+                isEmailVerified: user.isEmailVerified,
             },
             ...tokens,
         };
@@ -262,9 +452,10 @@ export class AuthService {
             name: user.name,
             email: user.email,
             role: user.role,
+            isApproved: user.isApproved,
             isEmailVerified: user.isEmailVerified,
             addresses: user.addresses || [],
-            vendorDetails: user.vendorDetails || null,
+            vendorDetails: null,
         };
     }
 
@@ -373,5 +564,43 @@ export class AuthService {
             },
             ...tokens,
         };
+    }
+
+    async blockUser(userId: string, adminId: string, reason: string) {
+        const user = await this.userModel.findByIdAndUpdate(
+            userId,
+            {
+                status: 'blocked',
+                blockedBy: adminId,
+                blockReason: reason,
+                blockedAt: new Date(),
+            },
+            { new: true }
+        ).exec();
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return { message: 'User blocked successfully', user };
+    }
+
+    async unblockUser(userId: string, adminId: string) {
+        const user = await this.userModel.findByIdAndUpdate(
+            userId,
+            {
+                status: 'active',
+                blockedBy: null,
+                blockReason: null,
+                blockedAt: null,
+            },
+            { new: true }
+        ).exec();
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return { message: 'User unblocked successfully', user };
     }
 }

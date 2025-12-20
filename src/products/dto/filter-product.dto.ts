@@ -52,4 +52,8 @@ export class FilterProductDto {
     @Min(0)
     @Type(() => Number)
     minRating?: number;
+
+    @IsOptional()
+    @IsString()
+    vendor?: string;
 }

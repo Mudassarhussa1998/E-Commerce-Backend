@@ -24,7 +24,7 @@ export class ProductsService {
         pages: number;
         hasMore: boolean;
     }> {
-        const { category, isNew, isFeatured, search, minPrice, maxPrice } = filterDto;
+        const { category, isNew, isFeatured, search, minPrice, maxPrice, vendor } = filterDto;
         const query: any = {};
 
         // Category filter
@@ -39,6 +39,11 @@ export class ProductsService {
 
         if (isFeatured !== undefined) {
             query.isFeatured = isFeatured;
+        }
+
+        // Vendor filter
+        if (vendor) {
+            query.vendor = vendor;
         }
 
         // Enhanced search with text scoring
@@ -165,23 +170,49 @@ export class ProductsService {
         return this.productModel.find({ vendor: vendorId }).exec();
     }
 
-    async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
-        const product = await this.productModel
-            .findByIdAndUpdate(id, updateProductDto, { new: true })
-            .exec();
-
+    async update(id: string, updateProductDto: UpdateProductDto, userId: string, userRole: string, files?: Express.Multer.File[]): Promise<Product> {
+        const product = await this.productModel.findById(id).exec();
+        
         if (!product) {
             throw new NotFoundException(`Product with ID ${id} not found`);
         }
 
-        return product;
-    }
-
-    async remove(id: string): Promise<void> {
-        const result = await this.productModel.findByIdAndDelete(id).exec();
-        if (!result) {
+        // Check permissions: admin can update any product, vendor can only update their own
+        if (userRole !== 'admin' && product.vendor.toString() !== userId) {
             throw new NotFoundException(`Product with ID ${id} not found`);
         }
+
+        // Handle file uploads if provided
+        const updateData = { ...updateProductDto };
+        if (files && files.length > 0) {
+            const imagePaths = files.map(file => `/uploads/${file.filename}`);
+            updateData.images = imagePaths;
+        }
+
+        const updatedProduct = await this.productModel
+            .findByIdAndUpdate(id, updateData, { new: true })
+            .exec();
+
+        if (!updatedProduct) {
+            throw new NotFoundException(`Product with ID ${id} not found`);
+        }
+
+        return updatedProduct;
+    }
+
+    async remove(id: string, userId: string, userRole: string): Promise<void> {
+        const product = await this.productModel.findById(id).exec();
+        
+        if (!product) {
+            throw new NotFoundException(`Product with ID ${id} not found`);
+        }
+
+        // Check permissions: admin can delete any product, vendor can only delete their own
+        if (userRole !== 'admin' && product.vendor.toString() !== userId) {
+            throw new NotFoundException(`Product with ID ${id} not found`);
+        }
+
+        await this.productModel.findByIdAndDelete(id).exec();
     }
 
     async updateStock(id: string, quantity: number): Promise<Product> {
@@ -196,7 +227,7 @@ export class ProductsService {
     }
     async getRecommendations(id: string): Promise<Product[]> {
         const product = await this.findOne(id);
-        const { category, price } = product;
+        const { topCategory, price } = product;
 
         // Find products in the same category, with similar price (+/- 20%), excluding the current product
         const minPrice = price * 0.8;
@@ -204,7 +235,7 @@ export class ProductsService {
 
         return this.productModel.find({
             _id: { $ne: id },
-            category,
+            topCategory: product.topCategory,
             price: { $gte: minPrice, $lte: maxPrice },
         }).limit(4).exec();
     }
@@ -241,7 +272,7 @@ export class ProductsService {
         products.forEach(product => {
             const words = [
                 ...product.title.toLowerCase().split(' '),
-                product.category.toLowerCase()
+                product.topCategory.toLowerCase()
             ];
             
             words.forEach(word => {
@@ -265,7 +296,7 @@ export class ProductsService {
         minPrice: number;
     }> {
         // Get all unique categories
-        const categories = await this.productModel.distinct('category');
+        const categories: string[] = await this.productModel.distinct('topCategory');
 
         // Get price statistics
         const priceStats = await this.productModel.aggregate([
@@ -319,7 +350,7 @@ export class ProductsService {
         return this.productModel
             .find({
                 _id: { $ne: productId },
-                category: product.category,
+                topCategory: product.topCategory,
                 price: {
                     $gte: product.price - priceRange,
                     $lte: product.price + priceRange
@@ -328,5 +359,41 @@ export class ProductsService {
             .sort({ averageRating: -1, totalReviews: -1 })
             .limit(limit)
             .exec();
+    }
+
+    async approveProduct(id: string, adminId: string): Promise<Product> {
+        const product = await this.productModel.findByIdAndUpdate(
+            id,
+            { 
+                isApproved: true,
+                approvedBy: adminId,
+                approvedAt: new Date()
+            },
+            { new: true }
+        ).exec();
+
+        if (!product) {
+            throw new NotFoundException(`Product with ID ${id} not found`);
+        }
+
+        return product;
+    }
+
+    async rejectProduct(id: string, adminId: string): Promise<Product> {
+        const product = await this.productModel.findByIdAndUpdate(
+            id,
+            { 
+                isApproved: false,
+                rejectedBy: adminId,
+                rejectedAt: new Date()
+            },
+            { new: true }
+        ).exec();
+
+        if (!product) {
+            throw new NotFoundException(`Product with ID ${id} not found`);
+        }
+
+        return product;
     }
 }

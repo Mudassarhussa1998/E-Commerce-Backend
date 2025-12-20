@@ -1,7 +1,19 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
 export type UserDocument = User & Document;
+
+export enum UserRole {
+    USER = 'user',
+    ADMIN = 'admin',
+    VENDOR = 'vendor',
+}
+
+export enum UserStatus {
+    ACTIVE = 'active',
+    BLOCKED = 'blocked',
+    SUSPENDED = 'suspended',
+}
 
 @Schema({ timestamps: true })
 export class User {
@@ -14,8 +26,11 @@ export class User {
     @Prop({ required: true })
     password: string;
 
-    @Prop({ default: 'user', enum: ['user', 'admin', 'vendor'] })
-    role: string;
+    @Prop({ default: UserRole.USER, enum: Object.values(UserRole) })
+    role: UserRole;
+
+    @Prop({ default: UserStatus.ACTIVE, enum: Object.values(UserStatus) })
+    status: UserStatus;
 
     @Prop({ type: String, default: null })
     refreshToken: string | null;
@@ -41,25 +56,6 @@ export class User {
     @Prop({ type: Date, default: null })
     emailVerificationOtpExpires: Date | null;
 
-    @Prop({
-        type: {
-            businessName: { type: String },
-            address: { type: String },
-            phone: { type: String },
-            taxId: { type: String },
-            description: { type: String },
-        },
-        default: null,
-        required: false
-    })
-    vendorDetails: {
-        businessName: string;
-        address: string;
-        phone: string;
-        taxId: string;
-        description: string;
-    } | null;
-
     @Prop({ default: true })
     isApproved: boolean;
 
@@ -83,6 +79,43 @@ export class User {
         phone: string;
         isDefault: boolean;
     }[];
+
+    // Additional user fields
+    @Prop()
+    phoneNumber: string;
+
+    @Prop()
+    dateOfBirth: Date;
+
+    @Prop({ enum: ['Male', 'Female', 'Other'] })
+    gender: string;
+
+    @Prop({ default: '/images/default-avatar.png' })
+    avatar: string;
+
+    @Prop({ type: Types.ObjectId, ref: 'User' })
+    blockedBy: Types.ObjectId; // Admin who blocked the user
+
+    @Prop()
+    blockReason: string;
+
+    @Prop()
+    blockedAt: Date;
+
+    @Prop({ default: 0 })
+    totalOrders: number;
+
+    @Prop({ default: 0 })
+    totalSpent: number;
+
+    @Prop()
+    lastLoginAt: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+// Indexes
+UserSchema.index({ email: 1 });
+UserSchema.index({ role: 1 });
+UserSchema.index({ status: 1 });
+UserSchema.index({ name: 'text', email: 'text' });

@@ -14,6 +14,8 @@ import { CouponsModule } from './coupons/coupons.module';
 import { EmailModule } from './email/email.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { VendorsModule } from './vendors/vendors.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
     EmailModule,
     PaymentsModule,
     AnalyticsModule,
+    VendorsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

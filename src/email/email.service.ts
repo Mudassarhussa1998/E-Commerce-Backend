@@ -38,7 +38,7 @@ export class EmailService {
       // If email credentials are configured, send real email
       if (emailUser && emailPass && this.transporter) {
         await this.transporter.sendMail({
-          from: `"Funiro" <${emailUser}>`,
+          from: `"StyleHub" <${emailUser}>`,
           to: options.to,
           subject: options.subject,
           html: options.html,
@@ -69,15 +69,40 @@ export class EmailService {
         </div>
         <p>This code will expire in 10 minutes.</p>
         <p>If you didn't request this code, please ignore this email.</p>
-        <p>Best regards,<br>The Funiro Team</p>
+        <p>Best regards,<br>The StyleHub Team</p>
       </div>
     `;
 
-    return this.sendEmail({
-      to: email,
-      subject: 'Your Funiro Verification Code',
-      html,
-    });
+    const emailUser = this.configService.get<string>('EMAIL_USER');
+    const emailPass = this.configService.get<string>('EMAIL_PASS');
+
+    // Always log OTP for development/testing
+    this.logger.log(`🔐 OTP for ${email}: ${otp}`);
+    this.logger.log(`📧 Email verification code sent to: ${email}`);
+
+    // If email credentials are configured, send real email
+    if (emailUser && emailPass && this.transporter) {
+      try {
+        await this.transporter.sendMail({
+          from: `"StyleHub" <${emailUser}>`,
+          to: email,
+          subject: 'Your StyleHub Verification Code',
+          html,
+        });
+        this.logger.log(`✅ Email successfully sent to: ${email}`);
+        return true;
+      } catch (error) {
+        this.logger.error(`❌ Failed to send email to ${email}:`, error);
+        // Still return true since OTP is logged for development
+        return true;
+      }
+    }
+
+    // For development without email config
+    this.logger.warn(`⚠️  Email service not configured. OTP logged above for testing.`);
+    this.logger.log(`📝 To configure email service, add EMAIL_USER and EMAIL_PASS to .env file`);
+    
+    return true;
   }
 
   async sendWelcomeEmail(userEmail: string, userName: string): Promise<boolean> {
@@ -298,6 +323,332 @@ export class EmailService {
     return this.sendEmail({
       to: userEmail,
       subject,
+      html,
+    });
+  }
+
+  // Vendor Email Methods
+  async sendVendorApplicationNotification(
+    vendorEmail: string,
+    vendorName: string,
+    shopName: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #333;">Vendor Application Received</h1>
+        <p>Hi ${vendorName},</p>
+        <p>Thank you for applying to become a vendor on our platform!</p>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+          <h3 style="margin: 0 0 10px 0;">Application Details</h3>
+          <p><strong>Shop Name:</strong> ${shopName}</p>
+          <p><strong>Status:</strong> Under Review</p>
+        </div>
+
+        <p>Our team will review your application and get back to you within 2-3 business days.</p>
+        <p>You will receive an email notification once your application is approved or if we need additional information.</p>
+
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: vendorEmail,
+      subject: 'Vendor Application Received - Under Review',
+      html,
+    });
+  }
+
+  async sendVendorApprovalEmail(
+    vendorEmail: string,
+    vendorName: string,
+    shopName: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #28a745;">Congratulations! Your Vendor Application is Approved</h1>
+        <p>Hi ${vendorName},</p>
+        <p>Great news! Your vendor application for "${shopName}" has been approved.</p>
+        
+        <div style="background-color: #d4edda; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #28a745;">
+          <h3 style="margin: 0 0 10px 0; color: #155724;">Welcome to Funiro Marketplace!</h3>
+          <p style="margin: 0; color: #155724;">You can now start adding products and managing your shop.</p>
+        </div>
+
+        <div style="margin: 30px 0;">
+          <a href="${this.configService.get('FRONTEND_URL')}/vendor/dashboard" 
+             style="background-color: #B88E2F; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+            Access Vendor Dashboard
+          </a>
+        </div>
+
+        <p>Next steps:</p>
+        <ul>
+          <li>Complete your shop profile</li>
+          <li>Add your first products</li>
+          <li>Set up your payment information</li>
+        </ul>
+
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: vendorEmail,
+      subject: 'Vendor Application Approved - Welcome to Funiro!',
+      html,
+    });
+  }
+
+  async sendVendorRejectionEmail(
+    vendorEmail: string,
+    vendorName: string,
+    shopName: string,
+    reason: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #dc3545;">Vendor Application Update</h1>
+        <p>Hi ${vendorName},</p>
+        <p>Thank you for your interest in becoming a vendor on our platform.</p>
+        
+        <div style="background-color: #f8d7da; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #dc3545;">
+          <h3 style="margin: 0 0 10px 0; color: #721c24;">Application Status: Not Approved</h3>
+          <p style="margin: 0; color: #721c24;">Unfortunately, we cannot approve your application at this time.</p>
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+          <h4 style="margin: 0 0 10px 0;">Reason:</h4>
+          <p style="margin: 0;">${reason}</p>
+        </div>
+
+        <p>You're welcome to reapply once you've addressed the concerns mentioned above.</p>
+
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: vendorEmail,
+      subject: 'Vendor Application Update',
+      html,
+    });
+  }
+
+  async sendVendorSuspensionEmail(
+    vendorEmail: string,
+    vendorName: string,
+    shopName: string,
+    reason: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #dc3545;">Account Suspension Notice</h1>
+        <p>Hi ${vendorName},</p>
+        <p>We regret to inform you that your vendor account for "${shopName}" has been suspended.</p>
+        
+        <div style="background-color: #f8d7da; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #dc3545;">
+          <h3 style="margin: 0 0 10px 0; color: #721c24;">Account Suspended</h3>
+          <p style="margin: 0; color: #721c24;">Your shop is temporarily unavailable to customers.</p>
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+          <h4 style="margin: 0 0 10px 0;">Reason for Suspension:</h4>
+          <p style="margin: 0;">${reason}</p>
+        </div>
+
+        <p>To appeal this decision or discuss reinstatement, please contact our support team.</p>
+
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: vendorEmail,
+      subject: 'Account Suspension Notice',
+      html,
+    });
+  }
+
+  async sendVendorUnsuspensionEmail(
+    vendorEmail: string,
+    vendorName: string,
+    shopName: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #28a745;">Account Reinstated</h1>
+        <p>Hi ${vendorName},</p>
+        <p>Great news! Your vendor account for "${shopName}" has been reinstated and is now active.</p>
+        
+        <div style="background-color: #d4edda; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #28a745;">
+          <h3 style="margin: 0 0 10px 0; color: #155724;">Account Active</h3>
+          <p style="margin: 0; color: #155724;">Your shop is now available to customers again.</p>
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+          <h4 style="margin: 0 0 10px 0;">What's Next:</h4>
+          <ul style="margin: 10px 0;">
+            <li>Your products are now visible to customers</li>
+            <li>You can receive new orders</li>
+            <li>All vendor features are restored</li>
+          </ul>
+        </div>
+
+        <p>Thank you for your patience. We look forward to your continued success on our platform.</p>
+
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: vendorEmail,
+      subject: 'Account Reinstated - Welcome Back!',
+      html,
+    });
+  }
+
+  // Report Email Methods
+  async sendReportAssignmentNotification(
+    adminEmail: string,
+    adminName: string,
+    reportSubject: string,
+    reportId: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #333;">New Report Assigned</h1>
+        <p>Hi ${adminName},</p>
+        <p>A new report has been assigned to you for review.</p>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+          <h3 style="margin: 0 0 10px 0;">Report Details</h3>
+          <p><strong>Subject:</strong> ${reportSubject}</p>
+          <p><strong>Report ID:</strong> ${reportId}</p>
+        </div>
+
+        <div style="margin: 30px 0;">
+          <a href="${this.configService.get('FRONTEND_URL')}/admin/reports/${reportId}" 
+             style="background-color: #B88E2F; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+            Review Report
+          </a>
+        </div>
+
+        <p>Best regards,<br>The Funiro System</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject: 'New Report Assigned for Review',
+      html,
+    });
+  }
+
+  async sendReportResolutionNotification(
+    userEmail: string,
+    userName: string,
+    reportSubject: string,
+    resolution: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #28a745;">Report Resolved</h1>
+        <p>Hi ${userName},</p>
+        <p>Your report has been reviewed and resolved by our team.</p>
+        
+        <div style="background-color: #d4edda; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #28a745;">
+          <h3 style="margin: 0 0 10px 0; color: #155724;">Report: ${reportSubject}</h3>
+          <p style="margin: 0; color: #155724;">Status: Resolved</p>
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+          <h4 style="margin: 0 0 10px 0;">Resolution:</h4>
+          <p style="margin: 0;">${resolution}</p>
+        </div>
+
+        <p>Thank you for bringing this to our attention. If you have any further concerns, please don't hesitate to contact us.</p>
+
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: userEmail,
+      subject: 'Your Report Has Been Resolved',
+      html,
+    });
+  }
+
+  async sendReportRejectionNotification(
+    userEmail: string,
+    userName: string,
+    reportSubject: string,
+    reason: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #dc3545;">Report Update</h1>
+        <p>Hi ${userName},</p>
+        <p>Your report has been reviewed by our team.</p>
+        
+        <div style="background-color: #f8d7da; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #dc3545;">
+          <h3 style="margin: 0 0 10px 0; color: #721c24;">Report: ${reportSubject}</h3>
+          <p style="margin: 0; color: #721c24;">Status: Not Actionable</p>
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
+          <h4 style="margin: 0 0 10px 0;">Reason:</h4>
+          <p style="margin: 0;">${reason}</p>
+        </div>
+
+        <p>If you believe this decision was made in error, you may submit a new report with additional information.</p>
+
+        <p>Best regards,<br>The Funiro Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: userEmail,
+      subject: 'Report Update',
+      html,
+    });
+  }
+
+  async sendNewReportNotification(
+    adminEmail: string,
+    adminName: string,
+    reportSubject: string,
+    reportType: string,
+    reportId: string,
+  ): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #ffc107;">New Report Submitted</h1>
+        <p>Hi ${adminName},</p>
+        <p>A new report has been submitted and requires admin attention.</p>
+        
+        <div style="background-color: #fff3cd; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #ffc107;">
+          <h3 style="margin: 0 0 10px 0; color: #856404;">Report Details</h3>
+          <p style="margin: 5px 0; color: #856404;"><strong>Type:</strong> ${reportType}</p>
+          <p style="margin: 5px 0; color: #856404;"><strong>Subject:</strong> ${reportSubject}</p>
+          <p style="margin: 5px 0; color: #856404;"><strong>ID:</strong> ${reportId}</p>
+        </div>
+
+        <div style="margin: 30px 0;">
+          <a href="${this.configService.get('FRONTEND_URL')}/admin/reports/${reportId}" 
+             style="background-color: #B88E2F; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;">
+            Review Report
+          </a>
+        </div>
+
+        <p>Best regards,<br>The Funiro System</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: adminEmail,
+      subject: 'New Report Requires Review',
       html,
     });
   }
