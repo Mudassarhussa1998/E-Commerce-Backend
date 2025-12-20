@@ -60,6 +60,21 @@ export class ProductsController {
         return this.productsService.findAll(filterDto);
     }
 
+    @Get('search/suggestions')
+    getSearchSuggestions(@Query('q') query: string, @Query('limit') limit?: number) {
+        return this.productsService.getSearchSuggestions(query, limit ? Number(limit) : 5);
+    }
+
+    @Get('search/popular-terms')
+    getPopularSearchTerms() {
+        return this.productsService.getPopularSearchTerms();
+    }
+
+    @Get('filters/options')
+    getFilterOptions() {
+        return this.productsService.getFilterOptions();
+    }
+
     @Get('featured')
     findFeatured() {
         return this.productsService.findFeatured();
@@ -85,6 +100,11 @@ export class ProductsController {
     @Get(':id/recommendations')
     getRecommendations(@Param('id') id: string) {
         return this.productsService.getRecommendations(id);
+    }
+
+    @Get(':id/related')
+    getRelatedProducts(@Param('id') id: string, @Query('limit') limit?: number) {
+        return this.productsService.getRelatedProducts(id, limit ? Number(limit) : 4);
     }
 
     @Get(':id')

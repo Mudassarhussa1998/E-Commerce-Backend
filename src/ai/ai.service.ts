@@ -19,8 +19,8 @@ export class AiService {
 
     async chat(userMessage: string) {
         // 1. Fetch simplified product catalog
-        const products = await this.productsService.findAll({});
-        const productContext = products.map(p =>
+        const productsResult = await this.productsService.findAll({});
+        const productContext = productsResult.products.map(p =>
             `- ${p.title} (${p.category}): Rp ${p.price.toLocaleString()} - ${p.stock > 0 ? 'In Stock' : 'Out of Stock'}`
         ).join('\n');
 
@@ -111,8 +111,8 @@ export class AiService {
             console.log('Image Description:', description);
 
             // 3. Find Matching Product using Text Model
-            const products = await this.productsService.findAll({});
-            const productContext = products.map(p =>
+            const productsResult = await this.productsService.findAll({});
+            const productContext = productsResult.products.map(p =>
                 `- ID: ${(p as any)._id}, Name: ${p.title}, Category: ${p.category}, Price: ${p.price}, Description: ${p.description}`
             ).join('\n');
 
