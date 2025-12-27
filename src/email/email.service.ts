@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
 
 interface EmailOptions {
   to: string;
@@ -13,48 +14,86 @@ interface EmailOptions {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private resend: Resend | null = null;
+  private smtpTransporter: nodemailer.Transporter | null = null;
   private fromEmail: string;
+  private useSmtp: boolean = false;
 
   constructor(private configService: ConfigService) {
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    const smtpUser = this.configService.get<string>('SMTP_USER');
+    const smtpPass = this.configService.get<string>('SMTP_PASS');
+    
     this.fromEmail = this.configService.get<string>('EMAIL_FROM') || 'StyleHub <onboarding@resend.dev>';
 
-    if (resendApiKey) {
+    // Prefer SMTP if configured (works with any email)
+    if (smtpHost && smtpUser && smtpPass) {
+      this.smtpTransporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: this.configService.get<number>('SMTP_PORT') || 587,
+        secure: this.configService.get<string>('SMTP_SECURE') === 'true',
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+      this.useSmtp = true;
+      this.logger.log('✅ SMTP email service initialized');
+    } else if (resendApiKey) {
       this.resend = new Resend(resendApiKey);
       this.logger.log('✅ Resend email service initialized');
     } else {
-      this.logger.warn('⚠️ RESEND_API_KEY not configured. Emails will be logged only.');
+      this.logger.warn('⚠️ No email service configured. Emails will be logged only.');
     }
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    // For development without Resend config, just log
-    if (!this.resend) {
-      this.logger.log(`📧 [DEV] Email would be sent to: ${options.to}`);
-      this.logger.log(`📧 [DEV] Subject: ${options.subject}`);
-      return true;
+    // Use SMTP if available
+    if (this.useSmtp && this.smtpTransporter) {
+      try {
+        const info = await this.smtpTransporter.sendMail({
+          from: this.fromEmail,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        });
+        this.logger.log(`📧 Email sent via SMTP to: ${options.to} (ID: ${info.messageId})`);
+        return true;
+      } catch (error) {
+        this.logger.error(`❌ SMTP failed to send email to ${options.to}:`, error);
+        return false;
+      }
     }
 
-    try {
-      const { data, error } = await this.resend.emails.send({
-        from: this.fromEmail,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text,
-      });
+    // Fallback to Resend
+    if (this.resend) {
+      try {
+        const { data, error } = await this.resend.emails.send({
+          from: this.fromEmail,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        });
 
-      if (error) {
+        if (error) {
+          this.logger.error(`❌ Failed to send email to ${options.to}:`, error);
+          return false;
+        }
+
+        this.logger.log(`📧 Email sent to: ${options.to} (ID: ${data?.id})`);
+        return true;
+      } catch (error) {
         this.logger.error(`❌ Failed to send email to ${options.to}:`, error);
         return false;
       }
-
-      this.logger.log(`📧 Email sent to: ${options.to} (ID: ${data?.id})`);
-      return true;
-    } catch (error) {
-      this.logger.error(`❌ Failed to send email to ${options.to}:`, error);
-      return false;
     }
+
+    // No email service configured, just log
+    this.logger.log(`📧 [DEV] Email would be sent to: ${options.to}`);
+    this.logger.log(`📧 [DEV] Subject: ${options.subject}`);
+    return true;
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<boolean> {
