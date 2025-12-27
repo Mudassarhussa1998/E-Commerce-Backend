@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 interface EmailOptions {
   to: string;
@@ -12,49 +12,47 @@ interface EmailOptions {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: nodemailer.Transporter;
+  private resend: Resend | null = null;
+  private fromEmail: string;
 
   constructor(private configService: ConfigService) {
-    // Initialize nodemailer transporter
-    const emailUser = this.configService.get<string>('EMAIL_USER');
-    const emailPass = this.configService.get<string>('EMAIL_PASS');
+    const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
+    this.fromEmail = this.configService.get<string>('EMAIL_FROM') || 'StyleHub <onboarding@resend.dev>';
 
-    if (emailUser && emailPass) {
-      this.transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: emailUser,
-          pass: emailPass,
-        },
-      });
+    if (resendApiKey) {
+      this.resend = new Resend(resendApiKey);
+      this.logger.log('✅ Resend email service initialized');
+    } else {
+      this.logger.warn('⚠️ RESEND_API_KEY not configured. Emails will be logged only.');
     }
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    try {
-      const emailUser = this.configService.get<string>('EMAIL_USER');
-      const emailPass = this.configService.get<string>('EMAIL_PASS');
-
-      // If email credentials are configured, send real email
-      if (emailUser && emailPass && this.transporter) {
-        await this.transporter.sendMail({
-          from: `"StyleHub" <${emailUser}>`,
-          to: options.to,
-          subject: options.subject,
-          html: options.html,
-          text: options.text,
-        });
-        this.logger.log(`📧 Email sent to: ${options.to}`);
-        return true;
-      }
-
-      // For development without email config, just log
+    // For development without Resend config, just log
+    if (!this.resend) {
       this.logger.log(`📧 [DEV] Email would be sent to: ${options.to}`);
       this.logger.log(`📧 [DEV] Subject: ${options.subject}`);
-      
+      return true;
+    }
+
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      if (error) {
+        this.logger.error(`❌ Failed to send email to ${options.to}:`, error);
+        return false;
+      }
+
+      this.logger.log(`📧 Email sent to: ${options.to} (ID: ${data?.id})`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send email to ${options.to}:`, error);
+      this.logger.error(`❌ Failed to send email to ${options.to}:`, error);
       return false;
     }
   }
@@ -73,37 +71,22 @@ export class EmailService {
       </div>
     `;
 
-    const emailUser = this.configService.get<string>('EMAIL_USER');
-    const emailPass = this.configService.get<string>('EMAIL_PASS');
-
     // Always log OTP for development/testing
     this.logger.log(`🔐 OTP for ${email}: ${otp}`);
-    this.logger.log(`📧 Email verification code sent to: ${email}`);
 
-    // If email credentials are configured, send real email
-    if (emailUser && emailPass && this.transporter) {
-      try {
-        await this.transporter.sendMail({
-          from: `"StyleHub" <${emailUser}>`,
-          to: email,
-          subject: 'Your StyleHub Verification Code',
-          html,
-        });
-        this.logger.log(`✅ Email successfully sent to: ${email}`);
-        return true;
-      } catch (error) {
-        this.logger.error(`❌ Failed to send email to ${email}:`, error);
-        // Still return true since OTP is logged for development
-        return true;
-      }
+    const result = await this.sendEmail({
+      to: email,
+      subject: 'Your StyleHub Verification Code',
+      html,
+    });
+
+    if (result) {
+      this.logger.log(`✅ Email verification code sent to: ${email}`);
     }
 
-    // For development without email config
-    this.logger.warn(`⚠️  Email service not configured. OTP logged above for testing.`);
-    this.logger.log(`📝 To configure email service, add EMAIL_USER and EMAIL_PASS to .env file`);
-    
-    return true;
+    return true; // Return true even if email fails so OTP flow continues
   }
+
 
   async sendWelcomeEmail(userEmail: string, userName: string): Promise<boolean> {
     const html = `
@@ -142,7 +125,7 @@ export class EmailService {
         <tr>
           <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.title}</td>
           <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">$${item.price.toLocaleString()}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${item.price.toLocaleString()}</td>
         </tr>
       `,
       )
@@ -157,7 +140,7 @@ export class EmailService {
         <div style="background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px;">
           <h3 style="margin: 0 0 10px 0;">Order Details</h3>
           <p><strong>Order Number:</strong> ${orderNumber}</p>
-          <p><strong>Total Amount:</strong> $${orderTotal.toLocaleString()}</p>
+          <p><strong>Total Amount:</strong> ${orderTotal.toLocaleString()}</p>
         </div>
 
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
@@ -326,6 +309,7 @@ export class EmailService {
       html,
     });
   }
+
 
   // Vendor Email Methods
   async sendVendorApplicationNotification(
