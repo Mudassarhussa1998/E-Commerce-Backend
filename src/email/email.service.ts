@@ -23,6 +23,9 @@ export class EmailService {
     // Default to a professional generic sender if not specified, but usually EMAIL_FROM should be set
     this.fromEmail = this.configService.get<string>('EMAIL_FROM') || '"Funiro Support" <support@funiro.com>';
 
+    // DEBUG: Log what we see (security masked)
+    this.logger.log(`🔍 Debug Env Vars: Host=${smtpHost ? 'OK' : 'MISSING'}, User=${smtpUser ? 'OK' : 'MISSING'}, Pass=${smtpPass ? 'SET' : 'MISSING'}`);
+
     if (smtpHost && smtpUser && smtpPass) {
       this.smtpTransporter = nodemailer.createTransport({
         host: smtpHost,
