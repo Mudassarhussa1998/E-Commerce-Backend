@@ -62,7 +62,7 @@ export class EmailService {
 
     // Fallback: Just log if no transporter (Dev mode or missing config)
     this.logger.warn(`⚠️ Email skipped (No SMTP Config). To: ${options.to}, Subject: ${options.subject}`);
-    return true; // Return true to prevent app crashing, but user won't get email
+    return false; // Return false to indicate email was not sent
   }
 
   async sendOtpEmail(email: string, otp: string): Promise<boolean> {
