@@ -57,10 +57,22 @@ export class AuthController {
     }
 
     @Post('logout')
-    @UseGuards(JwtAuthGuard)
     @HttpCode(HttpStatus.OK)
     async logout(@Request() req) {
-        return this.authService.logout(req.user.userId);
+        // Try to get userId from token if available, but don't require it
+        try {
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.split(' ')[1];
+                const decoded = require('jsonwebtoken').decode(token);
+                if (decoded?.sub) {
+                    return this.authService.logout(decoded.sub);
+                }
+            }
+        } catch (error) {
+            // Token invalid or expired, just return success
+        }
+        return { message: 'Logged out successfully' };
     }
 
     @Post('refresh')
