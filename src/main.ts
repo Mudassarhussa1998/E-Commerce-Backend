@@ -18,7 +18,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, curl, etc.)
       if (!origin) return callback(null, true);
-      
+
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -45,6 +45,10 @@ async function bootstrap() {
   );
 
   const port = process.env.PORT || 3001;
+  const mongoUri = process.env.MONGODB_URI;
+  console.log(`📡 Connecting to MongoDB: ${mongoUri?.includes('@') ? 'Cloud Instance' : 'Local Instance'} (URI Hidden)`);
+  if (!mongoUri?.includes('@')) console.log(`📡 Local URI: ${mongoUri}`);
+
   await app.listen(port);
   console.log(`🚀 Application is running on: http://localhost:${port}`);
 }

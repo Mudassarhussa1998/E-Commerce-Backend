@@ -9,6 +9,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { EmailService } from '../email/email.service';
 import { Vendor, VendorDocument, VendorStatus } from '../vendors/schemas/vendor.schema';
 
@@ -97,10 +99,10 @@ export class AuthService {
 
     async vendorRegister(registerDto: any, files: Express.Multer.File[]) {
         const { name, email, password, confirmPassword, vendorDetails } = registerDto;
-        
+
         // Parse vendorDetails if it's a string
-        const parsedVendorDetails = typeof vendorDetails === 'string' 
-            ? JSON.parse(vendorDetails) 
+        const parsedVendorDetails = typeof vendorDetails === 'string'
+            ? JSON.parse(vendorDetails)
             : vendorDetails;
 
         // Check if passwords match
@@ -439,6 +441,56 @@ export class AuthService {
         await user.save();
 
         return { message: 'Password reset successfully' };
+    }
+
+    async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+        // If email is being updated, check if it's already taken
+        if (updateProfileDto.email) {
+            const existingUser = await this.userModel.findOne({
+                email: updateProfileDto.email,
+                _id: { $ne: userId }
+            }).exec();
+
+            if (existingUser) {
+                throw new ConflictException('Email already in use');
+            }
+        }
+
+        const user = await this.userModel.findByIdAndUpdate(
+            userId,
+            { $set: updateProfileDto },
+            { new: true }
+        ).select('-password -refreshToken -otp -emailVerificationOtp').exec();
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return user;
+    }
+
+    async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+        const { currentPassword, newPassword, confirmNewPassword } = changePasswordDto;
+
+        if (newPassword !== confirmNewPassword) {
+            throw new BadRequestException('New passwords do not match');
+        }
+
+        const user = await this.userModel.findById(userId).exec();
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isPasswordValid) {
+            throw new BadRequestException('Invalid current password');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        return { message: 'Password changed successfully' };
     }
 
     async getProfile(userId: string) {

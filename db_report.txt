@@ -1,0 +1,42 @@
+Databases: ['admin', 'config', 'ecommerce', 'local']
+
+Database: ecommerce
+Users count: 34
+!!! FOUND TARGET USER !!!: testuser_debug@example.com ID: 695113e00ef53428d4360e79
+ - patrick21@example.com
+ - julia44@example.com
+ - cclark@example.com
+ - emilysmith@example.net
+ - hdiaz@example.net
+ - russelljames@example.net
+ - scottgarcia@example.com
+ - jasonclark@example.com
+ - colleen92@example.org
+ - cshaw@example.org
+ - erodriguez@example.org
+ - daniellemiles@example.org
+ - dustin66@example.org
+ - heatherparks@example.com
+ - william66@example.net
+ - smithchad@example.org
+ - myersmary@example.com
+ - dawn41@example.net
+ - seancole@example.com
+ - bwright@example.org
+ - jeremycobb@example.net
+ - timothywatson@example.net
+ - wendyvargas@example.com
+ - moralesdavid@example.net
+ - deniseschmidt@example.net
+ - xwatson@example.com
+ - tlucero@example.com
+ - ubutler@example.net
+ - amiller@example.net
+ - kathryn49@example.net
+ - admin@ecommerce.com
+ - mudassarhussa1998@gmail.com
+ - mudassarhussa82@gmail.com
+ - testuser_debug@example.com
+
+Vendors count: 12
+!!! FOUND TARGET VENDOR !!!: mudassarhussa1998@gmail.com

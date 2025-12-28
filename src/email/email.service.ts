@@ -20,11 +20,12 @@ export class EmailService {
     const smtpUser = this.configService.get<string>('SMTP_USER');
     const smtpPass = this.configService.get<string>('SMTP_PASS');
 
-    // Default to a professional generic sender if not specified, but usually EMAIL_FROM should be set
-    this.fromEmail = this.configService.get<string>('EMAIL_FROM') || '"Funiro Support" <support@funiro.com>';
+    // Use EMAIL_FROM if set, otherwise try to construct from SMTP_USER, finally fallback to generic
+    const emailFrom = this.configService.get<string>('EMAIL_FROM');
+    this.fromEmail = emailFrom || (smtpUser ? `"StyleHub Support" <${smtpUser}>` : '"StyleHub Support" <noreply@stylehub.com>');
 
     // DEBUG: Log what we see (security masked)
-    this.logger.log(`🔍 Debug Env Vars: Host=${smtpHost ? 'OK' : 'MISSING'}, User=${smtpUser ? 'OK' : 'MISSING'}, Pass=${smtpPass ? 'SET' : 'MISSING'}`);
+    this.logger.log(`🔍 Debug Env Vars: Host=${smtpHost ? 'OK' : 'MISSING'}, User=${smtpUser ? 'OK' : 'MISSING'}, Pass=${smtpPass ? 'SET' : 'MISSING'}, From=${this.fromEmail}`);
 
     if (smtpHost && smtpUser && smtpPass) {
       this.smtpTransporter = nodemailer.createTransport({

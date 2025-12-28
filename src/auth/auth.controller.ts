@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Param, Delete, Res, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Param, Delete, Res, UseInterceptors, UploadedFiles, Patch } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -8,6 +8,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -103,6 +105,19 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async verifyEmail(@Body() body: { email: string; otp: string }) {
         return this.authService.verifyEmail(body.email, body.otp);
+    }
+
+    @Patch('profile')
+    @UseGuards(JwtAuthGuard)
+    async updateProfile(@Request() req, @Body() updateProfileDto: UpdateProfileDto) {
+        return this.authService.updateProfile(req.user.userId, updateProfileDto);
+    }
+
+    @Post('change-password')
+    @HttpCode(HttpStatus.OK)
+    @UseGuards(JwtAuthGuard)
+    async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
+        return this.authService.changePassword(req.user.userId, changePasswordDto);
     }
 
     @Get('me')
