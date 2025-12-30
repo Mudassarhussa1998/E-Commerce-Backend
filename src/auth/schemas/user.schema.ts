@@ -110,6 +110,9 @@ export class User {
 
     @Prop()
     lastLoginAt: Date;
+
+    @Prop({ type: Object, default: null })
+    vendorDetails: any;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

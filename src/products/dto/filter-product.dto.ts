@@ -56,4 +56,9 @@ export class FilterProductDto {
     @IsOptional()
     @IsString()
     vendor?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    @Type(() => Boolean)
+    isApproved?: boolean;
 }

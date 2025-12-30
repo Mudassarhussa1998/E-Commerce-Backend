@@ -156,6 +156,11 @@ export class VendorsController {
     return this.vendorsService.getVendorStats((vendor as any)._id);
   }
 
+  @Get('by-user/:userId')
+  async getVendorByUserId(@Param('userId') userId: string) {
+    return this.vendorsService.getVendorByUserId(userId);
+  }
+
   @Get(':id')
   async getVendorById(@Param('id') id: string) {
     return this.vendorsService.getVendorById(id);

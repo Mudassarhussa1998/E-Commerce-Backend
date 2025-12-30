@@ -24,8 +24,15 @@ export class ProductsService {
         pages: number;
         hasMore: boolean;
     }> {
-        const { category, isNew, isFeatured, search, minPrice, maxPrice, vendor } = filterDto;
+        const { category, isNew, isFeatured, search, minPrice, maxPrice, vendor, isApproved } = filterDto;
         const query: any = {};
+
+        // Approval filter - only show approved products by default for public access
+        // But allow explicit filtering by isApproved parameter
+        if (isApproved !== undefined) {
+            query.isApproved = isApproved;
+        }
+        // Note: Removed default filtering to approved only - let frontend/admin decide
 
         // Category filter
         if (category) {
